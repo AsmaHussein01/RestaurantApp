@@ -1,44 +1,80 @@
-// Stage 1- Using dummy data for restauruant information
+// Stage 2- Pull real data from the API
 import SwiftUI
 
-struct Restaurant: Identifiable {
-    let id = UUID()
+struct APIResponse: Codable {
+    let restaurants: [Restaurant]
+}
+
+struct Restaurant: Codable, Identifiable {
+    var id: UUID { UUID() }
     let name: String
-    let rating: Double
-    let type: String
+    let cuisines: [Cuisine]
+    let rating: Rating?
+    let address: Address
+}
+
+struct Cuisine: Codable {
+    let name: String
+}
+
+struct Rating: Codable {
+    let starRating: Double?
+}
+
+struct Address: Codable {
+    let firstLine: String?
+    let city: String?
+    let postalCode: String?
+
+    var fullAddress: String {
+        [firstLine, city, postalCode]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+}
+
+// Fetch data for test postcode BS164DH
+class RestaurantViewModel: ObservableObject {
+    @Published var restaurants: [Restaurant] = []
+
+    func fetchRestaurants(for postcode: String = "BS164DH") {
+        let cleanPostcode = postcode.replacingOccurrences(of: " ", with: "")
+        let url = URL(string: "https://uk.api.just-eat.io/discovery/uk/restaurants/enriched/bypostcode/\(cleanPostcode)")!
+        
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("iOSApp/1.0", forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            let decoder = JSONDecoder()
+            let apiResponse = try! decoder.decode(APIResponse.self, from: data!)
+            DispatchQueue.main.async {
+                self.restaurants = Array(apiResponse.restaurants.prefix(10))
+            }
+        }.resume()
+    }
 }
 
 
-// REPLACE WITH FETCHRESTAURANTDATA FUNCTION
-let restaurants = [
-    Restaurant(name: "Restaurant 1", rating: 1, type: "Type1"),
-    Restaurant(name: "Restaurant 2", rating: 2, type: "Type2"),
-    Restaurant(name: "Restaurant 3", rating: 3, type: "Type3"),
-    Restaurant(name: "Restaurant 4", rating: 4, type: "Type4"),
-    Restaurant(name: "Restaurant 5", rating: 5, type: "Type5"),
-    Restaurant(name: "Restaurant 6", rating: 1.1, type: "Type6"),
-    Restaurant(name: "Restaurant 7", rating: 2.2, type: "Type7"),
-    Restaurant(name: "Restaurant 8", rating: 3.3, type: "Type8"),
-    Restaurant(name: "Restaurant 9", rating: 4.4, type: "Type9"),
-    Restaurant(name: "Restaurant 10", rating: 5.5, type: "Type10")
-]
-
-
-// Simple Display
 struct ContentView: View {
+
+    @StateObject private var viewModel = RestaurantViewModel()
+
     var body: some View {
         NavigationView {
-            List(restaurants) { restaurant in
-                VStack(alignment: .leading) {
+            List(viewModel.restaurants) { restaurant in
+                VStack(alignment: .leading, spacing: 6) {
                     Text(restaurant.name)
-                    Text(restaurant.type)
-                    Text("\(restaurant.rating, specifier: "%.1f")")
+                    Text("Cuisines: \(restaurant.cuisines.map { $0.name }.joined(separator: ", "))")
+                    Text("Rating: \(restaurant.rating?.starRating ?? 0, specifier: "%.1f")")
+                    Text("Address: \(restaurant.address.fullAddress)")
                 }
             }
             .navigationTitle("Top 10 Restaurants")
+            .onAppear {
+                viewModel.fetchRestaurants()
+            }
         }
         .navigationViewStyle(.stack)
-
     }
-
 }
