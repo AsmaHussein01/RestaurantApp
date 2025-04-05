@@ -1,4 +1,4 @@
-// Stage 3- Add a search bar
+// Stage 4- Allow user input
 import SwiftUI
 
 struct APIResponse: Codable {
@@ -38,19 +38,25 @@ struct Address: Codable {
 class RestaurantViewModel: ObservableObject {
     @Published var restaurants: [Restaurant] = []
 
-    func fetchRestaurants(for postcode: String = "BS164DH") {
+    func fetchRestaurants(for postcode: String) {
         let Postcode = postcode.replacingOccurrences(of: " ", with: "")
-        let url = URL(string: "https://uk.api.just-eat.io/discovery/uk/restaurants/enriched/bypostcode/\(Postcode)")!
+        
+        guard let url = URL(string: "https://uk.api.just-eat.io/discovery/uk/restaurants/enriched/bypostcode/\(Postcode)") else {
+            return
+        }
+
 
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("iOSApp/1.0", forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.dataTask(with: request) { data, _, _ in
+            guard let data = data else { return }
             let decoder = JSONDecoder()
-            let apiResponse = try! decoder.decode(APIResponse.self, from: data!)
-            DispatchQueue.main.async {
-                self.restaurants = Array(apiResponse.restaurants.prefix(10))
+            if let apiResponse = try? decoder.decode(APIResponse.self, from: data) {
+                DispatchQueue.main.async {
+                    self.restaurants = Array(apiResponse.restaurants.prefix(10))
+                }
             }
         }.resume()
     }
@@ -63,18 +69,17 @@ struct ContentView: View {
     @StateObject private var viewModel = RestaurantViewModel()
 
     @State private var postcode: String = ""
-    
+
     var body: some View {
         NavigationView {
             VStack {
-                // Static search bar
+                // Search bar
                 HStack {
                     TextField("Enter Your Postcode", text: $postcode)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                     Button("Search") {
                         viewModel.fetchRestaurants(for: postcode)
                     }
-                    .buttonStyle(.bordered)
                 }
                 .padding()
                 List(viewModel.restaurants) { restaurant in
@@ -84,13 +89,9 @@ struct ContentView: View {
                         Text("Rating: \(restaurant.rating?.starRating ?? 0, specifier: "%.1f")")
                         Text("Address: \(restaurant.address.fullAddress)")
                     }
-                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle("Top 10 Restaurants")
-            .onAppear {
-                viewModel.fetchRestaurants() 
-            }
         }
         .navigationViewStyle(.stack)
     }
