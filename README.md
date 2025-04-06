@@ -7,6 +7,7 @@ This solution was built with-
 •	Swift, 
 •	SwiftUI
 •	Swift Playgrounds
+
 This project was developed in Swift Playgrounds due to limited access to a Mac/Xcode environment. All core functionality and UI are present and working as intended. 
 
 To run this app- 
