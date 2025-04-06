@@ -1,4 +1,4 @@
-// Stage 4- Allow user input
+// Stage 5- Added Important Error Handling
 import SwiftUI
 
 struct APIResponse: Codable {
@@ -6,10 +6,10 @@ struct APIResponse: Codable {
 }
 
 struct Restaurant: Codable, Identifiable {
-    var id: UUID { UUID() }
+    var id: UUID {UUID()}
     let name: String
     let cuisines: [Cuisine]
-    let rating: Rating?
+    let rating: Rating
     let address: Address
 }
 
@@ -18,13 +18,13 @@ struct Cuisine: Codable {
 }
 
 struct Rating: Codable {
-    let starRating: Double?
+    let starRating: Double
 }
 
 struct Address: Codable {
-    let firstLine: String?
-    let city: String?
-    let postalCode: String?
+    let firstLine: String
+    let city: String
+    let postalCode: String
 
     var fullAddress: String {
         [firstLine, city, postalCode]
@@ -36,31 +36,63 @@ struct Address: Codable {
 
 
 class RestaurantViewModel: ObservableObject {
+
     @Published var restaurants: [Restaurant] = []
+
+    @Published var errorMessage: String?
 
     func fetchRestaurants(for postcode: String) {
         let Postcode = postcode.replacingOccurrences(of: " ", with: "")
-        
-        guard let url = URL(string: "https://uk.api.just-eat.io/discovery/uk/restaurants/enriched/bypostcode/\(Postcode)") else {
+
+        // No Postcode Input Error 
+        guard !postcode.trimmingCharacters(in: .whitespaces).isEmpty else {
+            DispatchQueue.main.async {
+                self.errorMessage = "Please enter a postcode."
+                self.restaurants = []
+            }
             return
         }
 
+        
 
+        guard let url = URL(string: "https://uk.api.just-eat.io/discovery/uk/restaurants/enriched/bypostcode/\(Postcode)") else {
+            DispatchQueue.main.async {
+                self.errorMessage = "Invalid postcode format."
+            }
+            return
+        }
+
+        
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("iOSApp/1.0", forHTTPHeaderField: "User-Agent")
 
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            guard let data = data else { return }
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            guard let data = data, error == nil else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to load data"
+                    self.restaurants = []
+                }
+                return
+            }
             let decoder = JSONDecoder()
-            if let apiResponse = try? decoder.decode(APIResponse.self, from: data) {
+            do {
+                let apiResponse = try decoder.decode(APIResponse.self, from: data)
                 DispatchQueue.main.async {
                     self.restaurants = Array(apiResponse.restaurants.prefix(10))
+                    self.errorMessage = nil
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to decode data."
+                    self.restaurants = []
                 }
             }
         }.resume()
     }
 }
+
+
 
 
 
@@ -73,7 +105,6 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // Search bar
                 HStack {
                     TextField("Enter Your Postcode", text: $postcode)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -82,11 +113,20 @@ struct ContentView: View {
                     }
                 }
                 .padding()
+
+                // Display error message
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
                 List(viewModel.restaurants) { restaurant in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(restaurant.name).font(.headline)
                         Text("Cuisines: \(restaurant.cuisines.map { $0.name }.joined(separator: ", "))")
-                        Text("Rating: \(restaurant.rating?.starRating ?? 0, specifier: "%.1f")")
+                        Text("Rating: \(restaurant.rating.starRating, specifier: "%.1f")")
                         Text("Address: \(restaurant.address.fullAddress)")
                     }
                 }
@@ -96,4 +136,3 @@ struct ContentView: View {
         .navigationViewStyle(.stack)
     }
 }
-
