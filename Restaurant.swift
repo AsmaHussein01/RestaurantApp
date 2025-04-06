@@ -1,4 +1,4 @@
-// Stage 5- Added Important Error Handling
+// Stage 6- Styling
 import SwiftUI
 
 struct APIResponse: Codable {
@@ -38,13 +38,11 @@ struct Address: Codable {
 class RestaurantViewModel: ObservableObject {
 
     @Published var restaurants: [Restaurant] = []
-
     @Published var errorMessage: String?
 
     func fetchRestaurants(for postcode: String) {
         let Postcode = postcode.replacingOccurrences(of: " ", with: "")
 
-        // No Postcode Input Error 
         guard !postcode.trimmingCharacters(in: .whitespaces).isEmpty else {
             DispatchQueue.main.async {
                 self.errorMessage = "Please enter a postcode."
@@ -52,8 +50,6 @@ class RestaurantViewModel: ObservableObject {
             }
             return
         }
-
-        
 
         guard let url = URL(string: "https://uk.api.just-eat.io/discovery/uk/restaurants/enriched/bypostcode/\(Postcode)") else {
             DispatchQueue.main.async {
@@ -63,6 +59,7 @@ class RestaurantViewModel: ObservableObject {
         }
 
         
+
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("iOSApp/1.0", forHTTPHeaderField: "User-Agent")
@@ -75,6 +72,7 @@ class RestaurantViewModel: ObservableObject {
                 }
                 return
             }
+
             let decoder = JSONDecoder()
             do {
                 let apiResponse = try decoder.decode(APIResponse.self, from: data)
@@ -88,12 +86,12 @@ class RestaurantViewModel: ObservableObject {
                     self.restaurants = []
                 }
             }
+
         }.resume()
+
     }
+
 }
-
-
-
 
 
 struct ContentView: View {
@@ -105,23 +103,29 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
+                Text("Top 10 Restaurants")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(.orange)
+                    .padding(.top, 30)
                 HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.orange)
                     TextField("Enter Your Postcode", text: $postcode)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                     Button("Search") {
                         viewModel.fetchRestaurants(for: postcode)
                     }
+                      .foregroundColor(.orange)
+                      .fontWeight(.bold)
                 }
                 .padding()
-
-                // Display error message
                 if let error = viewModel.errorMessage {
                     Text(error)
                         .foregroundColor(.red)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
-
                 List(viewModel.restaurants) { restaurant in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(restaurant.name).font(.headline)
@@ -131,8 +135,8 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Top 10 Restaurants")
         }
         .navigationViewStyle(.stack)
     }
 }
+
